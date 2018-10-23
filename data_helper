@@ -1,0 +1,81 @@
+#coding=utf-8
+import pickle
+import os
+import numpy as np
+import itertools
+from collections import Counter
+import jieba
+
+def load_data_labels():
+    pos_examples=list(open('data/chinese/rt-polarity.pos','r',encoding='utf-8').readlines())
+    pos_examples=[s.strip() for s in pos_examples]
+    neg_examples=list(open('data/chinese/rt-polarity.neg','r',encoding='utf-8').readlines())
+    neg_examples=[s.strip() for s in neg_examples]
+
+    x_text=pos_examples+neg_examples
+    x_text=[sent.split(' ') for sent in x_text]
+
+    pos_labels=[[0,1] for _ in pos_examples]
+    neg_labels=[[1,0] for _ in neg_examples]
+    y=np.concatenate([pos_labels,neg_labels],axis=0)
+    return [x_text,y]
+
+def pad_sentences(sentences,padding_word='<pad/>',sequence_length=50):
+    padded_sentences=[]
+    for i in range(len(sentences)):
+        sentence=sentences[i]
+        if sequence_length>len(sentence):
+            num_padding=sequence_length-len(sentence)
+            new_sentence=sentence+num_padding*[padding_word]
+            padded_sentences.append(new_sentence)
+        else:
+            padded_sentences.append(sentence[:sequence_length])
+    return padded_sentences
+
+def build_vocab():
+
+    sentences,labels=load_data_labels()
+    sentences_padded=pad_sentences(sentences)
+    voab_dir='data/chinese/vocab.pk'
+    if os.path.exists(voab_dir):
+        with open(voab_dir,'rb') as in_data:
+            vocabulary=pickle.load(in_data)
+            vocabulary_inv=pickle.load(in_data)
+        return [vocabulary,vocabulary_inv]
+    word_counts=Counter(itertools.chain(*sentences_padded))
+    vocabulary_inv=[x[0] for x in word_counts.most_common()]
+    vocabulary_inv=list(sorted(vocabulary_inv))
+    vocabulary={x:i for i,x in enumerate(vocabulary_inv)}
+    with open(voab_dir,'wb') as out_data:
+        print('正在保存中文词汇表')
+        pickle.dump(vocabulary,out_data,pickle.HIGHEST_PROTOCOL)
+        pickle.dump(vocabulary_inv,out_data,pickle.HIGHEST_PROTOCOL)
+    return [vocabulary,vocabulary_inv]
+
+def build_input(sentences,labels,vocabulary):
+    x=np.array([[vocabulary[word] for word in sentence] for sentence in sentences])
+    # print(x)
+    y=np.array(labels)
+    return [x,y]
+
+def build_input_chinese(input_x):
+    vocabulary,vocabulary_inv=build_vocab()
+    sequence_length=50
+    padding_word='<pad/>'
+    input_x=' '.join(jieba.cut(input_x))
+    input_x=input_x.split(' ')
+    if sequence_length>len(input_x):
+        num_padding=sequence_length-len(input_x)
+        input_x=input_x+num_padding*[padding_word]
+    else:
+        input_x=input_x[:50]
+    input_x=np.array([vocabulary[word] if word in vocabulary else vocabulary[padding_word] for word in input_x])
+    return input_x.reshape(1,sequence_length)
+
+def load_data():
+    sentences,labels=load_data_labels()
+    sentences_padded=pad_sentences(sentences)
+    # print(sentences_padded)
+    vocabulary,vocabulary_inv=build_vocab()
+    x,y=build_input(sentences_padded,labels,vocabulary)
+    return [x,y,vocabulary,vocabulary_inv]
