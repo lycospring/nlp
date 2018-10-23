@@ -1,0 +1,18 @@
+#coding=utf-8
+from keras.models import load_model
+from data_helper import build_input_chinese
+
+def predict(model):
+    while True:
+        input_x=input('请输入预测的句子:\n')
+        if input_x=='exit':
+            exit()
+        input_x=build_input_chinese(input_x)
+        print(input_x.shape)
+        y_pred=model.predict(input_x)
+        result=list(y_pred[0])
+        if result[1]>result[0]:
+            print('pos:',result[1])
+        else:
+            print('neg:',result[0])
+            
